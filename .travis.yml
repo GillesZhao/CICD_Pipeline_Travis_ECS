@@ -1,0 +1,96 @@
+language: python
+
+env:
+  global:
+   - vault_server_ip=xx.xx.xx.xx
+
+   - AWS_ACCOUNT_ID=1234567890
+   - AWS_DEFAULT_REGION=ap-southeast-1
+
+   - NGINX_APP_NAME=nginx
+   - PHP_APP_NAME=php
+   - cluster_name=ecs-staging
+
+   - base_nginx_image_name=$NGINX_APP_NAME:first_image
+   - base_php_image_name=$PHP_APP_NAME:first_image
+   - target_nginx_image_name="$NGINX_APP_NAME":"$TRAVIS_PULL_REQUEST_BRANCH"_"$TRAVIS_BUILD_NUMBER"
+   - target_php_image_name="$PHP_APP_NAME":"$TRAVIS_PULL_REQUEST_BRANCH"_"$TRAVIS_BUILD_NUMBER"
+
+   - alb_listener_arn="arn:aws:elasticloadbalancing:ap-southeast-1:1234567890:listener/app/xxxxxx/xxxxxx/xxxxxx"
+   - alb_arn="arn:aws:elasticloadbalancing:ap-southeast-1:1234567890:loadbalancer/app/xxxxxxx"
+   - alb_dns="dualstack.xxxxx-xxxxx-xxxxx.ap-southeast-1.elb.amazonaws.com"
+   - alb_target_group_name="targetgroups-wp"-"$NGINX_APP_NAME"-"$TRAVIS_PULL_REQUEST_BRANCH"
+   - dns_host="$TRAVIS_PULL_REQUEST_BRANCH"."content-site.*"
+   - route53_dns="*.content-site.xxxxx.com"
+
+   - ecs_service_nginx_name="$NGINX_APP_NAME"-"$TRAVIS_PULL_REQUEST_BRANCH"
+   - ecs_service_php_name="$PHP_APP_NAME"-"$TRAVIS_PULL_REQUEST_BRANCH"
+
+   - nginx_node_desired_count=1
+   - php_node_desired_count=1
+   - deletion_mark=1
+
+
+
+before_install:
+
+  - pip install awscli
+  - sudo apt-get install jq -y
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/create_route53_alias.sh
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/create_alb_listener_rules.sh
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/create_task_definitions.sh
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/create_ecs_service.sh
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/create_alb_target_group.sh
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/destroy_resources.sh
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/build_docker_images.sh
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/get_wp_config_php.sh
+  - chmod +x ./aws_ecs_deployment/deploy_scripts/get_wp_code_themes.sh
+  - sed -i "/fastcgi_index/a set \$php_backend ${ecs_service_php_name}.ecs-staging;" ./aws_ecs_deployment/nginx_config/conf/conf.d/content-site.conf
+
+jobs:
+
+  include:
+
+  - stage: build and push application docker image to aws ecr ...
+
+    script:
+
+      - ./aws_ecs_deployment/deploy_scripts/get_wp_code_themes.sh
+
+      - ./aws_ecs_deployment/deploy_scripts/get_wp_config_php.sh
+
+      - ./aws_ecs_deployment/deploy_scripts/build_docker_images.sh
+
+  - stage: Deploy application to AWS ...
+
+    script:
+
+      - echo Deployment starts ...
+
+      - ./aws_ecs_deployment/deploy_scripts/create_alb_target_group.sh
+
+      - ./aws_ecs_deployment/deploy_scripts/create_task_definitions.sh
+
+      - ./aws_ecs_deployment/deploy_scripts/create_alb_listener_rules.sh
+
+      - ./aws_ecs_deployment/deploy_scripts/create_ecs_service.sh
+
+      - ./aws_ecs_deployment/deploy_scripts/create_route53_alias.sh
+
+      - ./aws_ecs_deployment/deploy_scripts/destroy_resources.sh
+
+
+
+
+notifications:
+
+  slack:
+
+    on_pull_requests: true
+
+    rooms:
+     - xxxxx:xxxxxxxxxxxxxxxxxxxx
+
+    on_success: always # default: always
+
+    on_failure: always # default: always

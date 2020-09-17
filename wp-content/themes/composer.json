@@ -1,0 +1,9 @@
+{
+    "name": "xxxxx/wordpress-theme",
+    "type": "project",
+    "description": "The wordpress Framework.",
+    "keywords": [
+        "framework"
+    ],
+    "license": "MIT"
+}
